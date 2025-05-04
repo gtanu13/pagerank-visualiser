@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interactive PageRank Visualizer</title>
+  <script src="https://unpkg.com/cytoscape@3.22.0/dist/cytoscape.min.js"></script>
+  <style>
+    #cy {
+      width: 100%;
+      height: 500px;
+      border: 1px solid #ccc;
+    }
+    .btn {
+      padding: 10px;
+      margin: 10px;
+      background-color: #28a745;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    .btn:hover {
+      background-color: #218838;
+    }
+    #equations {
+      margin-top: 20px;
+      padding: 15px;
+      background-color: #f8f9fa;
+      border-radius: 5px;
+      font-family: monospace;
+    }
+    .equation {
+      margin: 5px 0;
+      white-space: pre;
+    }
+  </style>
+</head>
+<body>
+  <h1>PageRank Graph Visualizer</h1>
+
+  <!-- Input field for graph -->
+  <input type="text" id="graphInput" placeholder="Enter graph edges (e.g., A->B, B->C)" value="A->B, A->C, A->D, C->A, D->A, D->C, B->C" />
+  <button class="btn" onclick="createGraph()">Create Graph</button>
+
+  <h3>Graph Visualization:</h3>
+  <div id="cy"></div>
+
+  <h3>PageRank Scores:</h3>
+  <pre id="pagerank"></pre>
+
+  <h3>PageRank Equations:</h3>
+  <div id="equations">
+    PageRank Equations (d=1):
+    
+    For each node:
+    xᵢ = Σ (xⱼ/L(j))
+    where L(j) = outgoing links from j
+    
+    Current graph equations:
+  </div>
+
+  <script>
+    let cy;
+    let currentGraph = { nodes: [], edges: [] };
+
+    // Function to simplify fractions - exact matching
+    function toFraction(decimal) {
+      const exactFractions = {
+        '0.33333': '1/3',
+        '0.66667': '2/3',
+        '0.25000': '1/4',
+        '0.50000': '1/2',
+        '0.75000': '3/4',
+        '0.20000': '1/5',
+        '0.16667': '1/6',
+        '0.14286': '1/7'
+      };
+      
+      const rounded = parseFloat(decimal).toFixed(5);
+      if (exactFractions[rounded]) {
+        return exactFractions[rounded];
+      }
+      
+      const value = parseFloat(decimal);
+      const reciprocal = Math.round(1 / value);
+      if (Math.abs(value - 1/reciprocal) < 0.0001) {
+        return `1/${reciprocal}`;
+      }
+      
+      return parseFloat(decimal).toFixed(4);
+    }
+
+    // Initialize Cytoscape
+    function initCytoscape(elements) {
+      cy = cytoscape({
+        container: document.getElementById('cy'),
+        elements: elements,
+        style: [
+          {
+            selector: 'node',
+            style: {
+              'background-color': '#007bff',
+              'label': 'data(id)',
+              'color': 'white',
+              'text-valign': 'center',
+              'text-halign': 'center',
+              'width': '40px',
+              'height': '40px',
+              'font-size': '14px'
+            }
+          },
+          {
+            selector: 'edge',
+            style: {
+              'width': 2,
+              'line-color': '#007bff',
+              'target-arrow-color': '#007bff',
+              'target-arrow-shape': 'triangle',
+              'curve-style': 'bezier',
+              'label': 'data(fraction)',
+              'font-size': '12px',
+              'text-background-color': 'white',
+              'text-background-opacity': 0.8,
+              'text-background-padding': '2px'
+            }
+          }
+        ],
+        layout: {
+          name: 'cose',
+          animate: true,
+          animationDuration: 1000,
+          fit: true,
+          padding: 30
+        }
+      });
+    }
+
+    // Generate equations in exact format
+    function generateEquations() {
+      const equationsElement = document.getElementById('equations');
+      const sortedNodes = [...currentGraph.nodes].sort((a, b) => a.id.localeCompare(b.id));
+      
+      const incomingMap = {};
+      sortedNodes.forEach(node => {
+        incomingMap[node.id] = [];
+      });
+      
+      currentGraph.edges.forEach(edge => {
+        incomingMap[edge.target].push({
+          source: edge.source,
+          fraction: edge.fraction
+        });
+      });
+
+      let equationsHTML = `
+        PageRank Equations (d=1):
+        
+        For each node:
+        xᵢ = Σ (xⱼ/L(j))
+        where L(j) = outgoing links from j
+        
+        Current graph equations:
+      `;
+      
+      sortedNodes.forEach((node, i) => {
+        let equation = `x<sub>${i+1}</sub> = `;
+        const terms = [];
+        
+        sortedNodes.forEach((sourceNode, j) => {
+          const link = incomingMap[node.id].find(l => l.source === sourceNode.id);
+          const coeff = link ? link.fraction : '0';
+          terms.push(`${coeff} x<sub>${j+1}</sub>`);
+        });
+        
+        equation += terms.join(' + ');
+        equationsHTML += `<div class="equation">${equation}</div>`;
+      });
+      
+      equationsElement.innerHTML = equationsHTML;
+    }
+
+    // Create the graph from user input
+    function createGraph() {
+      const input = document.getElementById('graphInput').value;
+      const edges = input.split(',').map(edge => edge.trim());
+
+      currentGraph = { nodes: [], edges: [] };
+      const outgoingEdges = {};
+
+      // First pass to collect nodes and count outgoing edges
+      edges.forEach(edge => {
+        if (!edge.includes('->')) return;
+        
+        const [source, target] = edge.split('->').map(s => s.trim());
+        
+        if (!currentGraph.nodes.some(n => n.id === source)) {
+          currentGraph.nodes.push({ id: source });
+        }
+        if (!currentGraph.nodes.some(n => n.id === target)) {
+          currentGraph.nodes.push({ id: target });
+        }
+        
+        outgoingEdges[source] = (outgoingEdges[source] || 0) + 1;
+      });
+
+      // Second pass to create edges with exact fractions
+      edges.forEach(edge => {
+        if (!edge.includes('->')) return;
+        
+        const [source, target] = edge.split('->').map(s => s.trim());
+        const outDegree = outgoingEdges[source] || 1;
+        const probability = (1 / outDegree).toFixed(5);
+        const fraction = toFraction(probability);
+        
+        currentGraph.edges.push({
+          source: source,
+          target: target,
+          probability: probability,
+          fraction: fraction
+        });
+      });
+
+      // Prepare elements for Cytoscape
+      const elements = [
+        ...currentGraph.nodes.map(node => ({ data: { id: node.id } })),
+        ...currentGraph.edges.map(edge => ({ 
+          data: { 
+            source: edge.source, 
+            target: edge.target,
+            probability: edge.probability,
+            fraction: edge.fraction
+          } 
+        }))
+      ];
+
+      initCytoscape(elements);
+      generateEquations();
+      sendGraphForPageRank(elements);
+    }
+
+    // Send graph data to backend
+    function sendGraphForPageRank(elements) {
+      const edges = elements
+        .filter(element => element.data.source)
+        .map(element => `${element.data.source}->${element.data.target}`)
+        .join(', ');
+
+      fetch('http://127.0.0.1:5000/pagerank', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ edges: edges })
+      })
+      .then(response => response.json())
+      .then(data => {
+        document.getElementById('pagerank').textContent = JSON.stringify(data.ranks.scores, null, 2);
+        
+        if (cy) {
+          const maxScore = Math.max(...Object.values(data.ranks.scores));
+          cy.nodes().forEach(node => {
+            const score = data.ranks.scores[node.id()] || 0;
+            const normalizedSize = 30 + (score / maxScore) * 50;
+            node.style({
+              'width': normalizedSize,
+              'height': normalizedSize,
+              'font-size': Math.min(16, Math.max(10, normalizedSize / 3))
+            });
+          });
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        alert('Error calculating PageRank');
+      });
+    }
+
+    // Initialize with default graph
+    window.onload = createGraph;
+  </script>
+</body>
+</html>
