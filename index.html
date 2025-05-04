@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Interactive PageRank Visualizer</title>
+  <title> PageRank Visualizer</title>
   <script src="https://unpkg.com/cytoscape@3.22.0/dist/cytoscape.min.js"></script>
   <style>
     #cy {
@@ -36,19 +36,16 @@
   </style>
 </head>
 <body>
-  <h1>PageRank Graph Visualizer</h1>
+  <h1>Pagerank graph visualiser</h1>
 
   <!-- Input field for graph -->
   <input type="text" id="graphInput" placeholder="Enter graph edges (e.g., A->B, B->C)" value="A->B, A->C, A->D, C->A, D->A, D->C, B->C" />
   <button class="btn" onclick="createGraph()">Create Graph</button>
 
-  <h3>Graph Visualization:</h3>
+  <h3>Graph visualisation:</h3>
   <div id="cy"></div>
 
-  <h3>PageRank Scores:</h3>
-  <pre id="pagerank"></pre>
-
-  <h3>PageRank Equations:</h3>
+  <h3>PageRank equations:</h3>
   <div id="equations">
     PageRank Equations (d=1):
     
